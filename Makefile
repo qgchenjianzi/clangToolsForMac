@@ -1,12 +1,13 @@
+# Author: CurryChen (qgchenjianzi@foxmail.com)
+# 请修改以下llvm参数到您对应的正确目录
 LLVM_SRC_PATH := /Users/currychen/llvm
 LLVM_BUILD_PATH := /Users/currychen/llvm/llvm3.8-binaries
 LLVM_BIN_PATH := $(LLVM_BUILD_PATH)/bin
 
-#其中-I /usr/include 是指定了系统放置头文件的地方,否则会报找不到头文件的错误。
+# 以下编译参数中 -I /usr/include 是指定了系统放置头文件的地方,否则会报找不到头文件的错误。
 # -L /usr/lib 是指定g++查找的静态库位置
 # -v 是输出编译器查找哪些库文件的信息，便于出错的时候进行调试如果输出信息过多，可以去掉
-#  CXXFLAGS 请参照g++ options指南
-
+# CXXFLAGS 请参照g++ options指南
 CXX := g++ -I /usr/include -v -L /usr/lib
 CXXFLAGS := -fno-rtti -O0  -g
 
