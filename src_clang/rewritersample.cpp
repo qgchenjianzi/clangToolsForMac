@@ -137,9 +137,18 @@ int main(int argc, char *argv[]) {
     TheCompInst.createDiagnostics();
 
     LangOptions &lo = TheCompInst.getLangOpts();
+    //C++ 编译器配置
     lo.CPlusPlus = 1;
-
+    //OC 编译器配置
+    lo.ObjC1 = 1;
+    lo.AssumeSaneOperatorNew = 1;
     // Initialize target info with the default triple for our platform.
+
+    // 指定系统编译时查找的头文件
+    StringRef *strRef = new StringRef("-I /Users/currychen/llvm/tools/clang/lib/Headers/");
+    HeaderSearchOptions &headerSearchOption = TheCompInst.getHeaderSearchOpts();
+    headerSearchOption.AddSystemHeaderPrefix(*strRef,true);
+
     auto TO = std::make_shared<TargetOptions>();
     TO->Triple = llvm::sys::getDefaultTargetTriple();
     TargetInfo *TI =
