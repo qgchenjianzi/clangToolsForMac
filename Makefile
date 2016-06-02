@@ -45,7 +45,7 @@ CLANG_LIBS := \
 SRC_CLANG_DIR := src_clang
 BUILDDIR := build
 
-$(BUILDDIR)/rewritersample: $(SRC_CLANG_DIR)/rewritersample.cp
+$(BUILDDIR)/rewritersample: $(SRC_CLANG_DIR)/rewritersample.cpp
 	$(CXX) $(CXXFLAGS) $(LLVM_CXXFLAGS) $(CLANG_INCLUDES) $^ $(CLANG_LIBS) $(LLVM_LDFLAGS) -o $@
 
 

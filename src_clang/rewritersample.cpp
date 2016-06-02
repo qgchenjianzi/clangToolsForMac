@@ -59,6 +59,10 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
                 }
 
             }
+            else if(isa<ReturnStmt>(s)){
+              ReturnStmt *returnStat = cast<ReturnStmt>(s);
+              TheRewriter.InsertText(returnStat->getLocStart(),"//the return stmt --->",true,true); 
+            }
             return true;
         }
 
