@@ -31,6 +31,8 @@
 using namespace clang;
 using namespace std;
 
+
+string  fileName = "error: can not get the file name." ;
 // By implementing RecursiveASTVisitor, we can specify which AST nodes
 // we're interested in by overriding relevant methods.
 class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
@@ -60,8 +62,8 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
 
             }
             else if(isa<ReturnStmt>(s)){
-              ReturnStmt *returnStat = cast<ReturnStmt>(s);
-              TheRewriter.InsertText(returnStat->getLocStart(),"//the return stmt --->",true,true); 
+                ReturnStmt *returnStat = cast<ReturnStmt>(s);
+                TheRewriter.InsertText(returnStat->getLocStart(),"//the return stmt\n",true,true); 
             }
             return true;
         }
@@ -81,16 +83,19 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
 
                 // Add comment before
                 std::stringstream SSBefore;
-                SSBefore << "// Begin function " << FuncName << " returning " << TypeStr
-                    << "\n";
+                SSBefore << "/**" << "\n"
+                    << " *" <<" File Name: "<<fileName << "\n"
+                    << " *" << " Function Name: "<<FuncName << "\n" 
+                    << " *" <<" Returning Type: " << TypeStr << "\n"
+                    << " */"<<" \n";
                 SourceLocation ST = f->getSourceRange().getBegin();
                 TheRewriter.InsertText(ST, SSBefore.str(), true, true);
 
                 // And after
-                std::stringstream SSAfter;
-                SSAfter << "\n// End function " << FuncName;
-                ST = FuncBody->getLocEnd().getLocWithOffset(1);
-                TheRewriter.InsertText(ST, SSAfter.str(), true, true);
+                /* std::stringstream SSAfter;
+                   SSAfter << "\n// End function " << FuncName;
+                   ST = FuncBody->getLocEnd().getLocWithOffset(1);
+                   TheRewriter.InsertText(ST, SSAfter.str(), true, true);*/
             }
 
             return true;
@@ -125,6 +130,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    fileName = argv[1];
     // CompilerInstance will hold the instance of the Clang compiler for us,
     // managing the various objects needed to run the compiler.
     CompilerInstance TheCompInst;
