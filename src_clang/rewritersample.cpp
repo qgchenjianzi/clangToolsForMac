@@ -9,6 +9,8 @@
 //------------------------------------------------------------------------------
 #include <cstdio>
 #include <memory>
+#include <fstream>
+#include <iomanip>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -31,8 +33,9 @@
 using namespace clang;
 using namespace std;
 
-
-string  fileName = "error: can not get the file name." ;
+string  redirectFileFolder = "../redirect/";
+string  redirectFileName = "";
+string  fileName = "";
 // By implementing RecursiveASTVisitor, we can specify which AST nodes
 // we're interested in by overriding relevant methods.
 class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
@@ -187,5 +190,21 @@ int main(int argc, char *argv[]) {
         TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
     llvm::outs() << std::string(RewriteBuf->begin(), RewriteBuf->end());
 
+    size_t iPos = fileName.find("/");
+    redirectFileName = redirectFileFolder + fileName.substr(iPos+1,fileName.length()-1);
+    cout << redirectFileName << endl;
+
+    /*
+    ofstream redirectTheFile(redirectFileName);
+    if(redirectFileName.is_open()){
+      redirectFileName << std::string(RewriteBuf->begin(),RewriteBuf->end());
+      redirectFileName.close();
+    }*/
+    
+
+    ofstream ofile;
+    ofile.open(redirectFileName);
+    ofile << std::string(RewriteBuf->begin(),RewriteBuf->end()) ;
+    ofile.close();
     return 0;
 }
