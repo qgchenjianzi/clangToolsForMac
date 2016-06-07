@@ -10,10 +10,10 @@
 #include <cstdio>
 #include <memory>
 #include <fstream>
-#include <iomanip>
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <unistd.h>
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -33,7 +33,7 @@
 using namespace clang;
 using namespace std;
 
-string  redirectFileFolder = "../redirect/";
+string  redirectFileFolder = "/redirect/";
 string  redirectFileName = "";
 string  fileName = "";
 // By implementing RecursiveASTVisitor, we can specify which AST nodes
@@ -127,6 +127,23 @@ class MyASTConsumer : public ASTConsumer {
         MyASTVisitor Visitor;
 };
 
+void getDirBuf(char *newbuf,int size)
+{
+    int i = 0;
+    int count = 0;
+    char buf[80];
+    getcwd(buf,sizeof(buf));
+    for(i = 0 ;i < sizeof(buf) ;i++){
+        if(buf[i] == '/')
+            count ++;
+        if(count < 4)
+            newbuf[i] = buf[i];
+        else 
+            break;
+    }
+    newbuf[i] = '\0';
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         llvm::errs() << "Usage: rewritersample <filename>\n";
@@ -139,25 +156,29 @@ int main(int argc, char *argv[]) {
     CompilerInstance TheCompInst;
     TheCompInst.createDiagnostics();
 
+    cout << "LangOptions " << endl;
     LangOptions &lo = TheCompInst.getLangOpts();
     //C++ 编译器配置
-    lo.CPlusPlus = 1;
+    //lo.CPlusPlus = 1;
     //OC 编译器配置
     lo.ObjC1 = 1;
-    lo.AssumeSaneOperatorNew = 1;
+    lo.ObjC2 = 1;
+    //lo.AssumeSaneOperatorNew = 1;
     // Initialize target info with the default triple for our platform.
 
     // 指定系统编译时查找的头文件
-    StringRef *strRef = new StringRef("-I /Users/currychen/llvm/tools/clang/lib/Headers/");
-    HeaderSearchOptions &headerSearchOption = TheCompInst.getHeaderSearchOpts();
-    headerSearchOption.AddSystemHeaderPrefix(*strRef,true);
+    //StringRef *strRef = new StringRef("-I /Users/currychen/llvm/tools/clang/lib/Headers/");
+    //HeaderSearchOptions &headerSearchOption = TheCompInst.getHeaderSearchOpts();
+    //headerSearchOption.AddSystemHeaderPrefix(*strRef,true);
 
+    cout << "TargetOptions " << endl;
     auto TO = std::make_shared<TargetOptions>();
     TO->Triple = llvm::sys::getDefaultTargetTriple();
     TargetInfo *TI =
         TargetInfo::CreateTargetInfo(TheCompInst.getDiagnostics(), TO);
     TheCompInst.setTarget(TI);
 
+    cout << "FileManager "<< endl;
     TheCompInst.createFileManager();
     FileManager &FileMgr = TheCompInst.getFileManager();
     TheCompInst.createSourceManager(FileMgr);
@@ -165,46 +186,54 @@ int main(int argc, char *argv[]) {
     TheCompInst.createPreprocessor(TU_Module);
     TheCompInst.createASTContext();
 
+    cout << "SetSourceMgr" << endl;
     // A Rewriter helps us manage the code rewriting task.
     Rewriter TheRewriter;
-    TheRewriter.setSourceMgr(SourceMgr, TheCompInst.getLangOpts());
+    TheRewriter.setSourceMgr(SourceMgr, lo);
 
     // Set the main file handled by the source manager to the input file.
     const FileEntry *FileIn = FileMgr.getFile(argv[1]);
     SourceMgr.setMainFileID(
             SourceMgr.createFileID(FileIn, SourceLocation(), SrcMgr::C_User));
     TheCompInst.getDiagnosticClient().BeginSourceFile(
-            TheCompInst.getLangOpts(), &TheCompInst.getPreprocessor());
+            lo, &TheCompInst.getPreprocessor());
 
+
+    cout << "MyASTConsumer" << endl;
     // Create an AST consumer instance which is going to get called by
     // ParseAST.
     MyASTConsumer TheConsumer(TheRewriter);
 
+    cout << "ParseAST" << endl;
     // Parse the file to AST, registering our consumer as the AST consumer.
     ParseAST(TheCompInst.getPreprocessor(), &TheConsumer,
             TheCompInst.getASTContext());
 
+    cout << "Rewrite Buffer" << endl;
     // At this point the rewriter's buffer should be full with the rewritten
     // file contents.
     const RewriteBuffer *RewriteBuf =
         TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
     llvm::outs() << std::string(RewriteBuf->begin(), RewriteBuf->end());
 
-    size_t iPos = fileName.find("/");
-    redirectFileName = redirectFileFolder + fileName.substr(iPos+1,fileName.length()-1);
-    cout << redirectFileName << endl;
+    //查找最后一次 出现的位置
+    size_t iPos = fileName.rfind("/");
+    redirectFileName = fileName.substr(iPos+1,fileName.length()-1);
 
-    /*
-    ofstream redirectTheFile(redirectFileName);
-    if(redirectFileName.is_open()){
-      redirectFileName << std::string(RewriteBuf->begin(),RewriteBuf->end());
-      redirectFileName.close();
-    }*/
-    
+    //构建文件目录
+    char parentBuf[80];
+    getDirBuf(parentBuf,sizeof(parentBuf));
+    string nowbuf = parentBuf;
+    redirectFileFolder = nowbuf + redirectFileFolder;
+    redirectFileName = redirectFileFolder + redirectFileName;
+    cout << "\n The file dir is : "<<redirectFileName << endl;
 
     ofstream ofile;
     ofile.open(redirectFileName);
-    ofile << std::string(RewriteBuf->begin(),RewriteBuf->end()) ;
+    if(RewriteBuf!=NULL)
+        ofile << std::string(RewriteBuf->begin(),RewriteBuf->end()) ;
+    else
+        cout <<"The rewrite Buffer is NULL!" << endl;
     ofile.close();
     return 0;
 }
