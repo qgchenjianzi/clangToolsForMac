@@ -1,20 +1,21 @@
 //------------------------------------------------------------------------------
 // Clang rewriter sample. Demonstrates:
-//
-// * How to use RecursiveASTVisitor to find interesting AST nodes.
-// * How to use the Rewriter API to rewrite the source code.
-//
-// Currychen (qgchenjianzi@foxmail.com)
-// This code is in the public domain
-//------------------------------------------------------------------------------
-#include <cstdio>
-#include <memory>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <iostream>
-#include <unistd.h>
+    //
+    // * How to use RecursiveASTVisitor to find interesting AST nodes.
+    // * How to use the Rewriter API to rewrite the source code.
+    //
+    // Currychen (qgchenjianzi@foxmail.com)
+    // This code is in the public domain
+    //------------------------------------------------------------------------------
+    #include <cstdio>
+    #include <memory>
+    #include <fstream>
+    #include <string>
+    #include <sstream>
+    #include <iostream>
+    #include <unistd.h>
 
+#include "clang/AST/DeclObjC.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
@@ -40,36 +41,71 @@ string  fileName = "";
 // we're interested in by overriding relevant methods.
 class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
     public:
-        MyASTVisitor(Rewriter &R) : TheRewriter(R) {}
+    MyASTVisitor(Rewriter &R) : TheRewriter(R) {}
 
-        bool VisitStmt(Stmt *s) {
-            // Only care about If statements.
-            if (isa<IfStmt>(s)) {
-                IfStmt *IfStatement = cast<IfStmt>(s);
-                Stmt *Then = IfStatement->getThen();
+    bool VisitStmt(Stmt *s) {
+        // Only care about If statements.
+        if (isa<IfStmt>(s)) {
+            IfStmt *IfStatement = cast<IfStmt>(s);
+            Stmt *Then = IfStatement->getThen();
 
-                TheRewriter.InsertText(Then->getLocStart(), "// the 'if' part\n", true,
-                        true);
+            TheRewriter.InsertText(Then->getLocStart(), "// the 'if' part\n", true,
+                                   true);
 
-                Stmt *Else = IfStatement->getElse();
-                if (Else)
-                    TheRewriter.InsertText(Else->getLocStart(), "// the 'else' part\n",
-                            true, true);
-            }
-            else if(isa<CallExpr>(s)){
-                CallExpr *funcStat = cast<CallExpr>(s);
-                FunctionDecl *isFunc = funcStat->getDirectCallee();
-                if(isFunc){
-                    TheRewriter.InsertText(funcStat->getLocStart(),"//the func--->"+isFunc->getNameInfo().getName().getAsString()+"() begin called!\n",true,true);
-                }
-
-            }
-            else if(isa<ReturnStmt>(s)){
-                ReturnStmt *returnStat = cast<ReturnStmt>(s);
-                TheRewriter.InsertText(returnStat->getLocStart(),"//the return stmt\n",true,true); 
-            }
-            return true;
+            Stmt *Else = IfStatement->getElse();
+            if (Else)
+            TheRewriter.InsertText(Else->getLocStart(), "// the 'else' part\n",
+                                   true, true);
         }
+        else if(isa<CallExpr>(s)){
+            CallExpr *funcStat = cast<CallExpr>(s);
+            FunctionDecl *isFunc = funcStat->getDirectCallee();
+            if(isFunc){
+                TheRewriter.InsertText(funcStat->getLocStart(),"//the func--->"+isFunc->getNameInfo().getName().getAsString()+"() begin called!\n",true,true);
+            }
+
+        }
+        else if(isa<ReturnStmt>(s)){
+            ReturnStmt *returnStat = cast<ReturnStmt>(s);
+            TheRewriter.InsertText(returnStat->getLocStart(),"//the return stmt\n",true,true); 
+        }
+        return true;
+    }
+
+    bool VisitObjCMethodDecl(ObjCMethodDecl *f){
+        // Only function definitions (with bodies), not declarations.
+        if (f->hasBody()) {
+            Stmt *FuncBody = f->getBody();
+
+            // Type name as string
+            QualType QT = f->getReturnType();
+            std::string TypeStr = QT.getAsString();
+
+            // Function name
+            //DeclarationName DeclName = f->getName();
+            //std::string FuncName = DeclName.getAsString();
+            std::string FuncName = f->getNameAsString();
+
+            // Add comment before
+            std::stringstream SSBefore;
+            SSBefore << "/**" << "\n"
+            << " *" <<" File Name: "<<fileName << "\n"
+            << " *" << " Method Name: "<<FuncName << "\n" 
+            << " *" <<" Returning Type: " << TypeStr << "\n"
+            << " */"<<" \n";
+            SourceLocation ST = f->getSourceRange().getBegin();
+            TheRewriter.InsertText(ST, SSBefore.str(), true, true);
+
+            // And after
+            /* std::stringstream SSAfter;
+            SSAfter << "\n// End function " << FuncName;
+            ST = FuncBody->getLocEnd().getLocWithOffset(1);
+            TheRewriter.InsertText(ST, SSAfter.str(), true, true);*/
+        }
+
+        return true;
+
+    }
 
         bool VisitFunctionDecl(FunctionDecl *f) {
             // Only function definitions (with bodies), not declarations.
@@ -87,18 +123,18 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
                 // Add comment before
                 std::stringstream SSBefore;
                 SSBefore << "/**" << "\n"
-                    << " *" <<" File Name: "<<fileName << "\n"
-                    << " *" << " Function Name: "<<FuncName << "\n" 
-                    << " *" <<" Returning Type: " << TypeStr << "\n"
-                    << " */"<<" \n";
+                << " *" <<" File Name: "<<fileName << "\n"
+                << " *" << " Function Name: "<<FuncName << "\n" 
+                << " *" <<" Returning Type: " << TypeStr << "\n"
+                << " */"<<" \n";
                 SourceLocation ST = f->getSourceRange().getBegin();
                 TheRewriter.InsertText(ST, SSBefore.str(), true, true);
 
                 // And after
                 /* std::stringstream SSAfter;
-                   SSAfter << "\n// End function " << FuncName;
-                   ST = FuncBody->getLocEnd().getLocWithOffset(1);
-                   TheRewriter.InsertText(ST, SSAfter.str(), true, true);*/
+                SSAfter << "\n// End function " << FuncName;
+                ST = FuncBody->getLocEnd().getLocWithOffset(1);
+                TheRewriter.InsertText(ST, SSAfter.str(), true, true);*/
             }
 
             return true;
@@ -106,25 +142,35 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
 
     private:
         Rewriter &TheRewriter;
-};
+        };
 
 // Implementation of the ASTConsumer interface for reading an AST produced
 // by the Clang parser.
 class MyASTConsumer : public ASTConsumer {
     public:
-        MyASTConsumer(Rewriter &R) : Visitor(R) {}
+    MyASTConsumer(Rewriter &R) : Visitor(R) {}
 
-        // Override the method that gets called for each parsed top-level
-        // declaration.
-        virtual bool HandleTopLevelDecl(DeclGroupRef DR) {
-            for (DeclGroupRef::iterator b = DR.begin(), e = DR.end(); b != e; ++b)
-                // Traverse the declaration using our AST visitor.
+    // Override the method that gets called for each parsed top-level
+    // declaration.
+    virtual bool HandleTopLevelDecl(DeclGroupRef DR) {
+        for (DeclGroupRef::iterator b = DR.begin(), e = DR.end(); b != e; ++b)
+        {
+             // Traverse the declaration using our AST visitor.
+             if(isa<ObjCMethodDecl>(*b))
+             {
+                 //利用isa阻止再遍历一次oc代码 
+                 //ObjCMethodDecl *oc = (ObjCMethodDecl *) (*b);
+                 //Visitor.TraverseObjCMethodDecl(oc);
+             }
+             else
                 Visitor.TraverseDecl(*b);
-            return true;
         }
 
+        return true;
+    }
+
     private:
-        MyASTVisitor Visitor;
+    MyASTVisitor Visitor;
 };
 
 void getDirBuf(char *newbuf,int size)
@@ -135,11 +181,11 @@ void getDirBuf(char *newbuf,int size)
     getcwd(buf,sizeof(buf));
     for(i = 0 ;i < sizeof(buf) ;i++){
         if(buf[i] == '/')
-            count ++;
+        count ++;
         if(count < 4)
-            newbuf[i] = buf[i];
+        newbuf[i] = buf[i];
         else 
-            break;
+        break;
     }
     newbuf[i] = '\0';
 }
@@ -175,7 +221,7 @@ int main(int argc, char *argv[]) {
     auto TO = std::make_shared<TargetOptions>();
     TO->Triple = llvm::sys::getDefaultTargetTriple();
     TargetInfo *TI =
-        TargetInfo::CreateTargetInfo(TheCompInst.getDiagnostics(), TO);
+    TargetInfo::CreateTargetInfo(TheCompInst.getDiagnostics(), TO);
     TheCompInst.setTarget(TI);
 
     cout << "FileManager "<< endl;
@@ -194,9 +240,9 @@ int main(int argc, char *argv[]) {
     // Set the main file handled by the source manager to the input file.
     const FileEntry *FileIn = FileMgr.getFile(argv[1]);
     SourceMgr.setMainFileID(
-            SourceMgr.createFileID(FileIn, SourceLocation(), SrcMgr::C_User));
-    TheCompInst.getDiagnosticClient().BeginSourceFile(
-            lo, &TheCompInst.getPreprocessor());
+        SourceMgr.createFileID(FileIn, SourceLocation(), SrcMgr::C_User));
+TheCompInst.getDiagnosticClient().BeginSourceFile(
+    lo, &TheCompInst.getPreprocessor());
 
 
     cout << "MyASTConsumer" << endl;
@@ -207,13 +253,13 @@ int main(int argc, char *argv[]) {
     cout << "ParseAST" << endl;
     // Parse the file to AST, registering our consumer as the AST consumer.
     ParseAST(TheCompInst.getPreprocessor(), &TheConsumer,
-            TheCompInst.getASTContext());
+             TheCompInst.getASTContext());
 
     cout << "Rewrite Buffer" << endl;
     // At this point the rewriter's buffer should be full with the rewritten
     // file contents.
     const RewriteBuffer *RewriteBuf =
-        TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
+    TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
     llvm::outs() << std::string(RewriteBuf->begin(), RewriteBuf->end());
 
     //查找最后一次 出现的位置
@@ -231,9 +277,9 @@ int main(int argc, char *argv[]) {
     ofstream ofile;
     ofile.open(redirectFileName);
     if(RewriteBuf!=NULL)
-        ofile << std::string(RewriteBuf->begin(),RewriteBuf->end()) ;
+    ofile << std::string(RewriteBuf->begin(),RewriteBuf->end()) ;
     else
-        cout <<"The rewrite Buffer is NULL!" << endl;
+    cout <<"The rewrite Buffer is NULL!" << endl;
     ofile.close();
     return 0;
 }
