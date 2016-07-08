@@ -3,7 +3,8 @@
 LLVM_SRC_PATH := /Users/currychen/llvm
 LLVM_BUILD_PATH := /Users/currychen/llvm/llvm3.8-binaries
 LLVM_BIN_PATH := $(LLVM_BUILD_PATH)/bin
-
+#LLVM_BUILD_PATH := /Users/currychen/Documents/clang-3.1
+#LLVM_BIN_PATH := $(LLVM_BUILD_PATH)/bin
 # 以下编译参数中 -I /usr/include 是指定了系统放置头文件的地方,否则会报找不到头文件的错误。
 # -L /usr/lib 是指定g++查找的静态库位置
 # -v 是输出编译器查找哪些库文件的信息，便于出错的时候进行调试如果输出信息过多，可以去掉
@@ -18,7 +19,7 @@ LLVM_LDFLAGS_NOLIBS := `$(LLVM_BIN_PATH)/llvm-config --ldflags`
 
 CLANG_INCLUDES := \
 	-I$(LLVM_SRC_PATH)/tools/clang/include \
-        -I$(LLVM_BUILD_PATH)/tools/clang/include
+	-I$(LLVM_BUILD_PATH)/tools/clang/include
 
 CLANG_LIBS := \
 	-lclangAST \
@@ -45,8 +46,12 @@ CLANG_LIBS := \
 SRC_CLANG_DIR := src_clang
 BUILDDIR := build
 
+
 $(BUILDDIR)/rewritersample: $(SRC_CLANG_DIR)/rewritersample.cpp
 	$(CXX) $(CXXFLAGS) $(LLVM_CXXFLAGS) $(CLANG_INCLUDES) $^ $(CLANG_LIBS) $(LLVM_LDFLAGS) -o $@
+
+#$(BUILDDIR)/RewriteSource: $(SRC_CLANG_DIR)/RewriteSource.cpp
+#	$(CXX) $(CXXFLAGS) $(LLVM_CXXFLAGS) $(CLANG_INCLUDES) $^ $(CLANG_LIBS) $(LLVM_LDFLAGS) -o $@
 
 
 .PHONY: clean
