@@ -1,0 +1,225 @@
+diff --git a/src_clang/rewritersample.cpp b/src_clang/rewritersample.cpp
+index ec62fdd..0ff2df2 100644
+--- a/src_clang/rewritersample.cpp
++++ b/src_clang/rewritersample.cpp
+@@ -5,7 +5,6 @@
+ // * How to use the Rewriter API to rewrite the source code.
+ //
+ // Currychen (qgchenjianzi@foxmail.com)
+-// This code is in the public domain
+ //------------------------------------------------------------------------------
+ #include <cstdio>
+ #include <memory>
+@@ -37,6 +36,8 @@ using namespace std;
+ string  redirectFileFolder = "/redirect/";
+ string  redirectFileName = "";
+ string  fileName = "";
++string  VoidStr = "void";
++
+ // By implementing RecursiveASTVisitor, we can specify which AST nodes
+ // we're interested in by overriding relevant methods.
+ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
+@@ -66,7 +67,7 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
+ 
+             }
+             else if(isa<ReturnStmt>(s)){
+-                cout << "====================ReturnStmt===================="<< endl;
++                //This method still has bug of clang-3.9
+                 ReturnStmt *returnStat = cast<ReturnStmt>(s);
+                 TheRewriter.InsertText(returnStat->getLocStart(),"//the return stmt\n",true,true); 
+             }
+@@ -75,20 +76,18 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
+ 
+         bool VisitObjCMethodDecl(ObjCMethodDecl *f){
+             // Only function definitions (with bodies), not declarations.
+-            if (f->hasBody()) {
++            if (f->hasBody() && f->isThisDeclarationADefinition()) {
+                 Stmt *FuncBody = f->getBody();
+ 
+                 // Type name as string
+                 QualType QT = f->getReturnType();
+-                std::string TypeStr = QT.getAsString();
++                string TypeStr = QT.getAsString();
+ 
++                stringstream SSBefore;
+                 // Function name
+-                //DeclarationName DeclName = f->getName();
+-                //std::string FuncName = DeclName.getAsString();
+-                std::string FuncName = f->getNameAsString();
++                string FuncName = f->getNameAsString();
+ 
+-                // Add comment before
+-                std::stringstream SSBefore;
++                // stringstream SSBefore;
+                 SSBefore << "/**" << "\n"
+                     << " *" <<" File Name: "<<fileName << "\n"
+                     << " *" << " Method Name: "<<FuncName << "\n" 
+@@ -97,17 +96,30 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
+                 SourceLocation ST = f->getSourceRange().getBegin();
+                 TheRewriter.InsertText(ST, SSBefore.str(), true, true);
+ 
+-                // And after
+-                /* std::stringstream SSAfter;
+-                   SSAfter << "\n// End function " << FuncName;
+-                   ST = FuncBody->getLocEnd().getLocWithOffset(1);
+-                   TheRewriter.InsertText(ST, SSAfter.str(), true, true);*/
++                // Add on the first line of function
++                stringstream SSFirstline;
++                SSFirstline << "\nprintf("  
++                    << "\"FileName:[" << fileName << "],"
++                    << "FunctionName:[" << FuncName << "]\""
++                    << ")\n";
++                ST = FuncBody->getLocStart().getLocWithOffset(1);
++                TheRewriter.InsertText(ST,SSFirstline.str());
++
++                // Add return to the void function and it will not destory the prj
++                if(TypeStr == VoidStr){
++                    //Add after log
++                    stringstream SSAfter;
++                    SSAfter << "return" << endl;
++                    ST = FuncBody->getLocEnd().getLocWithOffset(0);
++                    TheRewriter.InsertText(ST, SSAfter.str(), true, true);
++                }
+             }
+ 
+             return true;
+ 
+         }
+ 
++
+         bool VisitFunctionDecl(FunctionDecl *f) {
+             // Only function definitions (with bodies), not declarations.
+             if (f->hasBody()) {
+@@ -115,14 +127,14 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
+ 
+                 // Type name as string
+                 QualType QT = f->getReturnType();
+-                std::string TypeStr = QT.getAsString();
++                string TypeStr = QT.getAsString();
+ 
+                 // Function name
+                 DeclarationName DeclName = f->getNameInfo().getName();
+-                std::string FuncName = DeclName.getAsString();
++                string FuncName = DeclName.getAsString();
+ 
+-                // Add comment before
+-                std::stringstream SSBefore;
++                stringstream SSBefore;
++                // stringstream SSBefore;
+                 SSBefore << "/**" << "\n"
+                     << " *" <<" File Name: "<<fileName << "\n"
+                     << " *" << " Function Name: "<<FuncName << "\n" 
+@@ -131,11 +143,23 @@ class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
+                 SourceLocation ST = f->getSourceRange().getBegin();
+                 TheRewriter.InsertText(ST, SSBefore.str(), true, true);
+ 
+-                // And after
+-                /* std::stringstream SSAfter;
+-                   SSAfter << "\n// End function " << FuncName;
+-                   ST = FuncBody->getLocEnd().getLocWithOffset(1);
+-                   TheRewriter.InsertText(ST, SSAfter.str(), true, true);*/
++                // Add on the first line of function
++                stringstream SSFirstline;
++                SSFirstline << "\nprintf("  
++                    << "\"FileName:[" << fileName << "],"
++                    << "FunctionName:[" << FuncName << "]\""
++                    << ")\n";
++                ST = FuncBody->getLocStart().getLocWithOffset(1);
++                TheRewriter.InsertText(ST,SSFirstline.str());
++
++                // Add return to the void function and it will not destory the prj
++                if(TypeStr == VoidStr){
++                    //Add after log
++                    stringstream SSAfter;
++                    SSAfter << "return" << endl;
++                    ST = FuncBody->getLocEnd().getLocWithOffset(0);
++                    TheRewriter.InsertText(ST, SSAfter.str(), true, true);
++                }
+             }
+ 
+             return true;
+@@ -203,29 +227,24 @@ int main(int argc, char *argv[]) {
+     CompilerInstance TheCompInst;
+     TheCompInst.createDiagnostics();
+ 
+-    //cout << "LangOptions " << endl;
+     LangOptions &lo = TheCompInst.getLangOpts();
+-    //C++ 编译器配置
+-    //lo.CPlusPlus = 1;
+-    //OC 编译器配置
++    //C++
++    lo.CPlusPlus = 1;
++    lo.GNUMode = 1;
++    lo.CXXExceptions = 1;
++    lo.RTTI = 1;
++    lo.Bool = 1;
++    //OC
+     lo.ObjC1 = 1;
+     lo.ObjC2 = 1;
+-    //lo.AssumeSaneOperatorNew = 1;
+-    // Initialize target info with the default triple for our platform.
+-
+-    // 指定系统编译时查找的头文件
+-    //StringRef *strRef = new StringRef("-I /Users/currychen/llvm/tools/clang/lib/Headers/");
+-    //HeaderSearchOptions &headerSearchOption = TheCompInst.getHeaderSearchOpts();
+-    //headerSearchOption.AddSystemHeaderPrefix(*strRef,true);
+ 
+-    //cout << "TargetOptions " << endl;
++    // Initial
+     auto TO = std::make_shared<TargetOptions>();
+     TO->Triple = llvm::sys::getDefaultTargetTriple();
+     TargetInfo *TI =
+         TargetInfo::CreateTargetInfo(TheCompInst.getDiagnostics(), TO);
+     TheCompInst.setTarget(TI);
+ 
+-    //cout << "FileManager "<< endl;
+     TheCompInst.createFileManager();
+     FileManager &FileMgr = TheCompInst.getFileManager();
+     TheCompInst.createSourceManager(FileMgr);
+@@ -233,7 +252,11 @@ int main(int argc, char *argv[]) {
+     TheCompInst.createPreprocessor(TU_Module);
+     TheCompInst.createASTContext();
+ 
+-    //cout << "SetSourceMgr" << endl;
++    HeaderSearchOptions &headerSearchOption = TheCompInst.getHeaderSearchOpts();
++    headerSearchOption.AddPath("/usr/include/",clang::frontend::Angled,false,false);
++    headerSearchOption.AddPath("/usr/lib/",clang::frontend::Angled,false,false);
++    headerSearchOption.AddPath("/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS9.3.sdk/System/Library/Frameworks/UIKit.framework/Headers",clang::frontend::Angled,false,false);
++
+     // A Rewriter helps us manage the code rewriting task.
+     Rewriter TheRewriter;
+     TheRewriter.setSourceMgr(SourceMgr, lo);
+@@ -246,17 +269,14 @@ int main(int argc, char *argv[]) {
+             lo, &TheCompInst.getPreprocessor());
+ 
+ 
+-    //cout << "MyASTConsumer" << endl;
+     // Create an AST consumer instance which is going to get called by
+     // ParseAST.
+     MyASTConsumer TheConsumer(TheRewriter);
+ 
+-    //cout << "ParseAST" << endl;
+     // Parse the file to AST, registering our consumer as the AST consumer.
+     ParseAST(TheCompInst.getPreprocessor(), &TheConsumer,
+             TheCompInst.getASTContext());
+ 
+-    //cout << "Rewrite Buffer" << endl;
+     // At this point the rewriter's buffer should be full with the rewritten
+     // file contents.
+     const RewriteBuffer *RewriteBuf =
+@@ -273,11 +293,13 @@ int main(int argc, char *argv[]) {
+     string nowbuf = parentBuf;
+     redirectFileFolder = nowbuf + redirectFileFolder;
+     redirectFileName = redirectFileFolder + redirectFileName;
+-    cout << "\n The file dir is : "<<redirectFileName << endl;
++    //cout << "\n The file dir is : "<<redirectFileName << endl;
++    cout << "\n The file dir is : "<< fileName << endl;
+ 
+     //把重写后的buffer重定向到一个新的文件
+     ofstream ofile;
+-    ofile.open(redirectFileName);
++    //ofile.open(redirectFileName);
++    ofile.open(fileName,ios::out);
+     if(RewriteBuf!=NULL)
+         ofile << std::string(RewriteBuf->begin(),RewriteBuf->end()) ;
+     else
